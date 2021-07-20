@@ -1,0 +1,126 @@
+options
+{
+    LOOKAHEAD=2;
+}
+
+PARSER_BEGIN(Calculator)
+
+import java.util.Map;
+import java.util.HashMap;
+
+public class Calculator {
+    final Map<String, Integer> assignments = new HashMap();
+
+    public static void main(String args[]) throws ParseException {
+        System.out.println("Parser for a calculator that accepts expressions with integers, +,-,*,/,(,) and =.");
+        System.out.println("Write an arithmetic expression or assignments followed by an expression:");
+        Calculator myCalc = new Calculator(System.in);
+        SimpleNode root = myCalc.Expression(); // returns reference to root node
+
+        root.dump(""); // prints the tree on the screen
+
+        System.out.println("\nExpression value: " + myCalc.traverse(root));
+    }
+
+    int traverse(SimpleNode node) {
+        for(int i = 0; i < node.jjtGetNumChildren() - 1; i++){
+            eval((SimpleNode) node.jjtGetChild(i));
+        }
+        return eval((SimpleNode) node.jjtGetChild(node.jjtGetNumChildren() - 1));
+    }
+
+    int eval(SimpleNode node) {
+        if(node.jjtGetNumChildren() == 0) // leaf node with integer value or symbol
+            return node.id != CalculatorTreeConstants.JJTRETRIEVE ? node.val : node.sign * assignments.get(node.var);
+        else if(node.jjtGetNumChildren() == 1) { // only one child
+            if (node.id == CalculatorTreeConstants.JJTASSIGN) {
+                assignments.put(node.var, eval((SimpleNode) node.jjtGetChild(0)));
+                return 0;
+            }
+            return this.eval((SimpleNode) node.jjtGetChild(0));
+        }
+
+        SimpleNode lhs = (SimpleNode) node.jjtGetChild(0); //left child
+        SimpleNode rhs = (SimpleNode) node.jjtGetChild(1); // right child
+
+        switch(node.id) {
+             case CalculatorTreeConstants.JJTADD : return eval( lhs ) + eval( rhs );
+             case CalculatorTreeConstants.JJTSUB : return eval( lhs ) - eval( rhs );
+             case CalculatorTreeConstants.JJTMUL : return eval( lhs ) * eval( rhs );
+             case CalculatorTreeConstants.JJTDIV : return eval( lhs ) / eval( rhs );
+             default : // abort
+                System.out.println("Illegal operator!");
+                System.exit(1);
+        }
+        return 0;
+    }
+}
+
+PARSER_END(Calculator)
+
+SKIP :
+{
+    " " | "\r" | "\t"
+}
+
+TOKEN:
+{
+    < INTEGER: (["0"-"9"])+ >
+    | < LF: "\n" >
+    | <SYMBOL: ["A"-"Z", "a"-"z"](["A"-"Z", "a"-"z", "0"-"9"])*>
+    | < SEMICOL: ";" >
+    | < EQ: "=" >
+}
+
+JAVACODE
+void error_skipto(int kind) {
+    Token t;
+    /*
+        Consume tokens all the way up to a token of "kind" - use a do-while loop
+        rather than a while because the current token is the one immediately before
+        the erroneous token (in our case the token immediately before what should
+        have been "if"/"while"
+    */
+    do {
+        t = getNextToken();
+    } while (t.kind != kind);
+}
+
+SimpleNode Expression(): {}
+{
+    Expr0() <LF> {return jjtThis;} // Java code inside brackets
+}
+
+void Expr0() #void: {Token t;}
+{
+    (
+        (t = <SYMBOL> { jjtThis.var = t.image; } <EQ> Expr1(1))  #Assign(1)
+        <SEMICOL> <LF>
+    )*
+    Expr1(1) <SEMICOL>
+}
+
+void Expr1(int sign) #void: {}
+{
+    Expr2(sign)
+    (
+        ( "+" Expr2(sign) #Add(2)
+        | "-" Expr2(sign) #Sub(2))
+    )*
+}
+
+void Expr2(int sign) #void: {}  // 1: positive; -1: negative, because of the ‘-‘ unitary operator
+{
+    Expr3(sign)
+    ( "*" Expr3(sign) #Mul(2)
+    | "/" Expr3(sign) #Div(2)
+    )*
+}
+
+void Expr3(int sign) #void: {Token t;}
+{
+    t = <INTEGER> { jjtThis.val = sign * Integer.parseInt(t.image); jjtThis.sign = sign; } #Term
+    | t = <SYMBOL> { jjtThis.var = t.image; jjtThis.sign = sign; } #Retrieve
+    | "(" Expr1(sign) ")"
+    | "-" Expr3(sign == 1 ? -1 : 1) #Minus
+}
