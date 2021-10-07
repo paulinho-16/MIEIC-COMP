@@ -1,0 +1,330 @@
+options
+{
+    LOOKAHEAD=1;
+    NODE_SCOPE_HOOK=true;
+    // DEBUG_PARSER = true;
+}
+
+PARSER_BEGIN(Javamm)
+
+import pt.up.fe.comp.jmm.report.Report;
+import pt.up.fe.comp.jmm.report.ReportType;
+import pt.up.fe.comp.jmm.report.Stage;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Javamm
+{
+    private static final int MAX_ERRORS = 10;
+    private int nErrors = 0;
+    private ArrayList<Report> reportList = new ArrayList<Report>();
+
+     void jjtreeOpenNodeScope(Node n) {
+            ((SimpleNode)n).put("line", Integer.toString(getToken(1).beginLine));
+            ((SimpleNode)n).put("col", Integer.toString(getToken(1).beginColumn));
+    }
+
+    void jjtreeCloseNodeScope(Node n) {
+    }
+
+    private void while_err_handling(ParseException pe){
+        this.nErrors++;
+
+        if( this.nErrors > MAX_ERRORS){
+            throw new RuntimeException("Limit of" + MAX_ERRORS + " errors reached!");
+        }
+
+        Token t, previewT;
+        int line = 0;
+        boolean first = true;
+
+        do {
+            previewT = getToken(1);
+            if(first){
+                line = previewT.beginLine;
+                first = false;
+            }
+
+            if( previewT.kind == LBRACKET){
+                break;
+            }
+            t = getNextToken();
+
+        } while (t.kind != EOF);
+
+        Report rep = new Report(ReportType.ERROR, Stage.SYNTATIC, line, "Detected error in while statement");
+        this.reportList.add(rep);
+    }
+
+    public boolean hasErrors(){
+        return this.nErrors > 0;
+    }
+
+    public ArrayList<Report> getReports() { return this.reportList;}
+
+};
+
+PARSER_END(Javamm)
+
+// Ignorable Symbols
+SKIP :
+{
+    " "
+    | "\t"
+    | "\r"
+    | "\n"
+    | < "//" (~["\n","\r"])* ("\n"|"\r"|"\r\n")>             // inline comments
+    | < "/*" (~["*"])* "*" (~["/"] (~["*"])* "*")* "/" >       // block comments
+}
+
+// Reserved Words
+
+TOKEN :
+{
+    <BOOLEAN: "boolean">
+    | <CLASS: "class" >
+    | <ELSE: "else">
+    | <EXTENDS: "extends">
+    | <FALSE_: "false">
+    | <IF: "if">
+    | <IMPORT: "import">
+    | <INT: "int">
+    | <LENGTH: "length">
+    | <MAIN: "main">
+    | <NEW: "new">
+    | <PUBLIC: "public">
+    | <RETURN: "return">
+    | <STATIC: "static">
+    | <STRING: "String">
+    | <THIS: "this">
+    | <TRUE_: "true">
+    | <VOID: "void">
+    | <WHILE: "while">
+}
+
+// Operations
+
+TOKEN :
+{
+    < AND : "&&">
+    | < DIV : "/">
+    | < EQUAL : "=">
+    | < LESSTHAN : "<">
+    | < MULT : "*">
+    | < NOT : "!">
+    | < SUB : "-">
+    | < SUM : "+">
+}
+
+// Delimiters
+
+TOKEN :
+{
+    < DOT: "." >
+    | < COMMA: "," >
+    | < SEMICOLON: ";" >
+    | < LBRACKET: "{" >
+    | < RBRACKET: "}" >
+    | < LSQBRACKET: "[" >
+    | < RSQBRACKET: "]" >
+    | < LPRTHSIS: "(">
+    | < RPRTHSIS: ")">
+}
+
+// Identifiers
+
+TOKEN: {
+    < INTEGER: (["0"-"9"])+ >
+    | < IDENTIFIER: ["A"-"Z", "a"-"z", "_", "$"](["0"-"9", "A"-"Z", "a" - "z", "_", "$"])* >
+}
+
+
+// {..} means (..)* and [..] means (..)?
+
+SimpleNode Parse() #Program : {}
+{
+    (ImportDeclaration())* ClassDeclaration() <EOF> // Java code inside brackets
+    {return jjtThis;}
+
+}
+
+void ImportDeclaration() #Import : {Token importToken;}
+{
+    <IMPORT> (importToken=<IDENTIFIER> {jjtThis.put("name",importToken.image);} (<DOT> <IDENTIFIER>)*) #Library  <SEMICOLON>
+}
+
+void ClassDeclaration() #Class : {Token classToken;}
+{
+    <CLASS> classToken=<IDENTIFIER> {jjtThis.put("name", classToken.image);} (<EXTENDS> classToken=<IDENTIFIER> {jjtThis.put("extends", classToken.image);})?
+       ClassBody()
+}
+
+void ClassBody() #void : {}
+{
+    <LBRACKET>
+        (VarDeclaration())*
+        (MethodDeclaration())*
+    <RBRACKET>
+}
+
+void VarDeclaration() #Var: {Token var;}
+{
+    Type() var=<IDENTIFIER>{jjtThis.put("name", var.image);} <SEMICOLON>
+}
+
+void MethodDeclaration() #void : {}
+{
+    <PUBLIC> (MainMethodDeclaration() | RegularMethodDeclaration())
+}
+
+void MainMethodDeclaration() #MainMethod : {Token arg;}
+{
+       <STATIC> <VOID> <MAIN> <LPRTHSIS> <STRING> <LSQBRACKET> <RSQBRACKET> arg=<IDENTIFIER> {jjtThis.put("argName", arg.image);} <RPRTHSIS>
+       <LBRACKET>
+             MethodBody()
+       <RBRACKET>
+}
+
+void RegularMethodDeclaration() #Method :{Token method;}
+{
+        Type() method=<IDENTIFIER> {jjtThis.put("name",method.image);} <LPRTHSIS> ( MethodArguments() )? <RPRTHSIS>
+        <LBRACKET>
+            MethodBody()
+            ReturnExpression()
+        <RBRACKET>
+}
+
+void MethodBody() : {}
+{
+        ( LOOKAHEAD(2) VarDeclaration())*
+        (Statement())*
+}
+
+void ReturnExpression() #Return : {}
+{
+        <RETURN> Expression() <SEMICOLON>
+}
+
+void MethodArguments() : {}
+{
+        Argument() ( <COMMA> Argument() )*
+}
+
+void Argument(): {Token argument;}
+{
+        Type() argument=<IDENTIFIER> {jjtThis.put("name",argument.image);}
+}
+
+void Type(): {Token type;}
+{
+        (type=<INT> {jjtThis.put("name",type.image);} (ArrayType())?)
+        |
+        type=<BOOLEAN> {jjtThis.put("name",type.image);}
+        |
+        type=<IDENTIFIER> {jjtThis.put("name",type.image);}
+}
+
+void ArrayType() #Array : {}
+{
+    <LSQBRACKET> <RSQBRACKET>
+}
+
+void Statement() #void : {}
+{
+         <LBRACKET> (Statement())* <RBRACKET>
+         | IfStatement()
+         | WhileStatement()
+         | (LOOKAHEAD(2) EqualStatement() | Expression()) <SEMICOLON>
+}
+
+void IfStatement() #void: {}
+{
+        (<IF> <LPRTHSIS> (Expression()) #IfCondition <RPRTHSIS> (Statement()) #IfBody <ELSE> (Statement()) #ElseBody ) #IfElse(3)
+}
+
+void WhileStatement() #While : {}
+{
+        <WHILE> <LPRTHSIS>
+         try {
+            (Expression()) #WhileCondition <RPRTHSIS>
+         } catch(ParseException e) {
+              while_err_handling(e);
+         }
+
+        (Statement()) #WhileBody
+}
+
+void EqualStatement() : {Token equalToken;}
+{
+        (equalToken=<IDENTIFIER> {jjtThis.put("name",equalToken.image);} ( AccessToArray() )?) #Identifier <EQUAL> Expression()
+}
+
+void Expression() #void : {} {
+        AndExpression()
+}
+
+ void AndExpression() #void : {}
+ {
+        LessThanExpression() ( <AND> LessThanExpression() #And(2) )*
+ }
+
+ void LessThanExpression() #void : {}
+ {
+        AdditiveExpression() ( <LESSTHAN> AdditiveExpression() #LessThan(2))*
+ }
+
+ void AdditiveExpression() #void : {}
+{
+        (<NOT> AdditiveExpression() #Not) | (MultiplicativeExpression() ( ( <SUM> MultiplicativeExpression() #Sum(2) | <SUB> MultiplicativeExpression() #Sub(2)) )*)
+}
+
+void MultiplicativeExpression() #void : {}
+{
+        PrimaryExpression() ( ( <MULT> PrimaryExpression() #Mult(2) | <DIV> PrimaryExpression() #Div(2)))*
+}
+
+void PrimaryExpression() #void : {}
+{
+        PrimaryPrefix() (PrimarySuffix() #TwoPartExpression(2))?
+}
+
+void PrimaryPrefix() #void : {}
+{
+        Literal()
+        | AllocationExpression()
+        | <LPRTHSIS> Expression() <RPRTHSIS>
+}
+
+void PrimarySuffix() #void : {}
+{
+    AccessToArray()
+    | DotExpression()
+}
+
+void Literal() #void : {Token literalToken;}
+{
+         literalToken=<INTEGER> {jjtThis.put("value",literalToken.image);} #Integer
+         | literalToken=<TRUE_> {jjtThis.put("value",literalToken.image);} #Boolean
+         | literalToken=<FALSE_> {jjtThis.put("value",literalToken.image);} #Boolean
+         | literalToken=<IDENTIFIER> {jjtThis.put("name",literalToken.image);} #Identifier
+         | <THIS> #This
+}
+
+void AllocationExpression() : {Token allocationToken;}
+{
+        <NEW> (<INT> AccessToArray() | allocationToken=<IDENTIFIER>{jjtThis.put("name",allocationToken.image);} #Object <LPRTHSIS> <RPRTHSIS> )
+}
+
+void DotExpression() : {Token dotToken;}
+{
+        <DOT>
+        (
+            <LENGTH> #Length
+            | (dotToken=<IDENTIFIER>{jjtThis.put("name",dotToken.image);} <LPRTHSIS> (Expression() (<COMMA> Expression())*)? <RPRTHSIS>) #MethodCall
+        )
+}
+
+void AccessToArray(): {}
+{
+        <LSQBRACKET> Expression() <RSQBRACKET>
+}

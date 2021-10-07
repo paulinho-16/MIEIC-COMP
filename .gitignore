@@ -1,3 +1,13 @@
+# Gradle
+/bin/
+.gradle/
+gradle/
+/build/
+/generated/
+comp2021-*.jar
+gradlew
+gradlew.bat
+
 # Compiled class file
 *.class
 
@@ -24,3 +34,11 @@
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
+*.dot
+
+#AST generated every program run
+AST.json
+out
+test.txt
+jasmin.txt
+*.dot

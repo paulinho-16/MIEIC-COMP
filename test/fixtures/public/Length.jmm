@@ -1,0 +1,26 @@
+import io;
+class Life {
+
+    public static void main(String[] args) {
+        int [] a;
+        int [] b;
+        int al;
+        int bl;
+        int c;
+        a = new int[2];
+        b = new int[a.length];
+        al = a.length;
+        bl = b.length;
+        c = bl;
+
+        if(c < al && c < bl){
+            c = 2;
+        }else{
+            c = 1;
+        }
+        c = 0;
+        while(c < al){
+            c = c +1;
+        }
+    }
+}

@@ -1,0 +1,25 @@
+import io;
+class globals{
+    int a;
+	public static void main(String[] args) {
+	    int a;
+	    globals g;
+	    a = 3;
+		io.println(a);
+        g=new globals();
+        g.test();
+        g.test2(2);
+	}
+
+	public int test() {
+    	    a = 3;
+    		io.println(a);
+    		return a;
+    }
+
+	public int test2(int a) {
+            a = 3;
+            io.println(a);
+            return a;
+    }
+}
